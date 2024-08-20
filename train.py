@@ -1802,6 +1802,9 @@ def main():
                             f"\n-> Packed Noisy Latents shape: {packed_noisy_latents.shape if hasattr(packed_noisy_latents, 'shape') else None}, dtype: {packed_noisy_latents.dtype if hasattr(packed_noisy_latents, 'dtype') else None}"
                         )
 
+                        mask_tens = batch["encoder_attention_mask"].unsqueeze(-1)
+                        text_embeds = batch["prompt_embeds"] * mask_tens
+
                         flux_transformer_kwargs = {
                             "hidden_states": packed_noisy_latents.to(
                                 dtype=base_weight_dtype, device=accelerator.device
@@ -1812,7 +1815,7 @@ def main():
                             "pooled_projections": batch["add_text_embeds"].to(
                                 device=accelerator.device, dtype=base_weight_dtype
                             ),
-                            "encoder_hidden_states": batch["prompt_embeds"].to(
+                            "encoder_hidden_states": text_embeds.to(
                                 device=accelerator.device, dtype=base_weight_dtype
                             ),
                             "txt_ids": text_ids.to(
