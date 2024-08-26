@@ -140,6 +140,7 @@ class FluxAttnProcessor2_0:
         encoder_hidden_states: torch.FloatTensor = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         image_rotary_emb: Optional[torch.Tensor] = None,
+        attention_dropout: float = 0.0,
     ) -> torch.FloatTensor:
         input_ndim = hidden_states.ndim
         if input_ndim == 4:
@@ -220,7 +221,7 @@ class FluxAttnProcessor2_0:
             query,
             key,
             value,
-            dropout_p=0.0,
+            dropout_p=attention_dropout,
             is_causal=False,
             attn_mask=attention_mask,
         )
@@ -360,6 +361,7 @@ class FluxSingleTransformerBlock(nn.Module):
         temb: torch.FloatTensor,
         image_rotary_emb=None,
         attention_mask: Optional[torch.Tensor] = None,
+        attention_dropout: float = 0.0,
     ):
         residual = hidden_states
         norm_hidden_states, gate = self.norm(hidden_states, emb=temb)
@@ -375,6 +377,7 @@ class FluxSingleTransformerBlock(nn.Module):
             hidden_states=norm_hidden_states,
             image_rotary_emb=image_rotary_emb,
             attention_mask=attention_mask,
+            attention_dropout=attention_dropout,
         )
 
         hidden_states = torch.cat([attn_output, mlp_hidden_states], dim=2)
@@ -448,6 +451,7 @@ class FluxTransformerBlock(nn.Module):
         temb: torch.FloatTensor,
         image_rotary_emb=None,
         attention_mask: Optional[torch.Tensor] = None,
+        attention_dropout: float = 0.0,
     ):
         norm_hidden_states, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.norm1(
             hidden_states, emb=temb
@@ -469,6 +473,7 @@ class FluxTransformerBlock(nn.Module):
             encoder_hidden_states=norm_encoder_hidden_states,
             image_rotary_emb=image_rotary_emb,
             attention_mask=attention_mask,
+            attention_dropout=attention_dropout,
         )
 
         # Process attention outputs for the `hidden_states`.
@@ -611,6 +616,7 @@ class FluxTransformer2DModelWithMasking(
         joint_attention_kwargs: Optional[Dict[str, Any]] = None,
         return_dict: bool = True,
         attention_mask: Optional[torch.Tensor] = None,
+        attention_dropout: float = 0.0,
     ) -> Union[torch.FloatTensor, Transformer2DModelOutput]:
         """
         The [`FluxTransformer2DModelWithMasking`] forward method.
@@ -695,6 +701,7 @@ class FluxTransformer2DModelWithMasking(
                         temb,
                         image_rotary_emb,
                         attention_mask,
+                        attention_dropout,
                         **ckpt_kwargs,
                     )
                 )
@@ -706,6 +713,7 @@ class FluxTransformer2DModelWithMasking(
                     temb=temb,
                     image_rotary_emb=image_rotary_emb,
                     attention_mask=attention_mask,
+                    attention_dropout=attention_dropout,
                 )
 
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
@@ -731,6 +739,7 @@ class FluxTransformer2DModelWithMasking(
                     temb,
                     image_rotary_emb,
                     attention_mask,
+                    attention_dropout,
                     **ckpt_kwargs,
                 )
 
@@ -740,6 +749,7 @@ class FluxTransformer2DModelWithMasking(
                     temb=temb,
                     image_rotary_emb=image_rotary_emb,
                     attention_mask=attention_mask,
+                    attention_dropout=attention_dropout,
                 )
 
         hidden_states = hidden_states[:, encoder_hidden_states.shape[1] :, ...]

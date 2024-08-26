@@ -138,10 +138,12 @@ class SaveHookManager:
             if args.sd3:
                 self.denoiser_class = SD3Transformer2DModel
                 self.pipeline_class = StableDiffusion3Pipeline
-            elif args.flux and not args.flux_attention_masked_training:
+            elif args.flux and not (args.flux_attention_masked_training or
+                args.flux_attention_dropout):
                 self.denoiser_class = FluxTransformer2DModel
                 self.pipeline_class = FluxPipeline
-            elif args.flux and args.flux_attention_masked_training:
+            elif args.flux and (args.flux_attention_masked_training or
+                args.flux_attention_dropout):
                 from helpers.models.flux.transformer import (
                     FluxTransformer2DModelWithMasking,
                 )

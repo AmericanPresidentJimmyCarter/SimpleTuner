@@ -179,6 +179,16 @@ def parse_args(input_args=None):
         help="Use attention masking while training flux.",
     )
     parser.add_argument(
+        "--flux_attention_dropout",
+        type=float,
+        default=0.0,
+        help=(
+            "Randomly mask tokens for attention while training the model."
+            " 0.1 = 10%. Can be used with or without "
+            "--flux_attention_masked_training.",
+        ),
+    )
+    parser.add_argument(
         "--smoldit",
         action="store_true",
         default=False,

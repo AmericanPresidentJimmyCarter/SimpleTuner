@@ -1907,6 +1907,8 @@ def main():
                                 raise ValueError(
                                     "No attention mask was discovered when attempting validation - this means you need to recreate your text embed cache."
                                 )
+                        if bool(args.flux_attention_dropout):
+                            flux_transformer_kwargs["attention_dropout"] = args.flux_attention_dropout
 
                         model_pred = transformer(**flux_transformer_kwargs)[0]
 
