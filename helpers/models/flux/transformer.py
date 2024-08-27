@@ -58,6 +58,7 @@ class FluxSingleAttnProcessor2_0:
         encoder_hidden_states: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         image_rotary_emb: Optional[torch.Tensor] = None,
+        attention_dropout: float = 0.0,
     ) -> torch.Tensor:
         input_ndim = hidden_states.ndim
 
@@ -106,7 +107,7 @@ class FluxSingleAttnProcessor2_0:
             query,
             key,
             value,
-            dropout_p=0.0,
+            dropout_p=attention_dropout,
             is_causal=False,
             attn_mask=attention_mask,
         )
