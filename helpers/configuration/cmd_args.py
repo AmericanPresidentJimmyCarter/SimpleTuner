@@ -2026,15 +2026,15 @@ def parse_cmdline_args(input_args=None):
             )
     flux_version = "dev"
     model_max_seq_length = 512
-    if (
-        "schnell" in args.pretrained_model_name_or_path.lower()
-        or args.flux_fast_schedule
-    ):
-        if not args.flux_fast_schedule:
-            logger.error("Schnell requires --flux_fast_schedule.")
-            sys.exit(1)
-        flux_version = "schnell"
-        model_max_seq_length = 256
+    # if (
+    #     "schnell" in args.pretrained_model_name_or_path.lower()
+    #     or args.flux_fast_schedule
+    # ):
+    #     if not args.flux_fast_schedule:
+    #         logger.error("Schnell requires --flux_fast_schedule.")
+    #         sys.exit(1)
+    #     flux_version = "schnell"
+    #     model_max_seq_length = 256
 
     if args.model_family == "flux":
         if (
