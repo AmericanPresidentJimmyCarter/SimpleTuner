@@ -10,6 +10,19 @@ logger = logging.getLogger("MultiaspectImage")
 logger.setLevel(os.environ.get("SIMPLETUNER_IMAGE_PREP_LOG_LEVEL", "INFO"))
 
 
+class ImageTooLargeError(Exception):
+    pass
+
+class ImageTooSmallError(Exception):
+    pass
+
+class ImageRatioTooLargeError(Exception):
+    pass
+
+class ImageAreaTooLargeError(Exception):
+    pass
+
+
 class MultiaspectImage:
     @staticmethod
     def get_image_transforms():
@@ -211,6 +224,41 @@ class MultiaspectImage:
         return (target_resolution, intermediary_resolution, adjusted_aspect_ratio)
 
     @staticmethod
+    def calculate_size_bucket(
+        aspect_ratio: float|str,
+        resolution: float,
+        original_size: tuple,
+        k: int=64,
+        drop_above_edge_size: int=1024,
+        drop_below_edge_size: int=512,
+        maximum_ratio: int=4.0,
+    ):
+        maximum_area = int(resolution) ** 2
+        width, height = original_size
+        width = int(width)
+        height = int(height)
+        smallest_edge = min(width, height)
+        if smallest_edge > drop_above_edge_size:
+            raise ImageTooLargeError(f"Smallest edge {smallest_edge} is larger than {drop_above_edge_size}.")
+        if smallest_edge < drop_below_edge_size:
+            raise ImageTooSmallError(f"Smallest edge {smallest_edge} is smaller than {drop_below_edge_size}.")
+
+        ratio = max(width / height, height / width)
+        if ratio > maximum_ratio:
+            raise ImageRatioTooLargeError(f"Image ratio {ratio:.2f} exceeds maximum allowed ratio {maximum_ratio}.")
+
+        bucket_w = (width // k) * k
+        bucket_h = (height // k) * k
+
+        if bucket_w == 0 or bucket_h == 0:
+            raise ValueError("Bucket size cannot be zero.")
+        
+        if bucket_w * bucket_h > maximum_area:
+            raise ImageAreaTooLargeError(f"Image area of {bucket_w * bucket_h} exceeds maximum area of {maximum_area}")
+
+        return ((bucket_w, bucket_h), original_size, f"{bucket_w}x{bucket_h}")
+
+    @staticmethod
     def adjust_resolution_to_bucket_interval(
         initial_resolution: tuple, target_resolution: tuple
     ):
@@ -266,4 +314,5 @@ class MultiaspectImage:
 resize_helpers = {
     "pixel": MultiaspectImage.calculate_new_size_by_pixel_edge,
     "area": MultiaspectImage.calculate_new_size_by_pixel_area,
+    "unchanged": MultiaspectImage.calculate_size_bucket,
 }

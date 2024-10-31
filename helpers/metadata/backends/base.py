@@ -1,11 +1,18 @@
 from math import ceil
+from typing import Optional
 import os
 import time
 import logging
 import threading
 import torch
 from helpers.data_backend.base import BaseDataBackend
-from helpers.multiaspect.image import MultiaspectImage
+from helpers.multiaspect.image import (
+    ImageAreaTooLargeError,
+    ImageRatioTooLargeError,
+    ImageTooLargeError,
+    ImageTooSmallError,
+    MultiaspectImage,
+)
 from helpers.training.state_tracker import StateTracker
 from helpers.training.multi_process import should_log
 from multiprocessing import Process, Queue
@@ -41,7 +48,10 @@ class MetadataBackend:
         delete_problematic_images: bool = False,
         delete_unwanted_images: bool = False,
         metadata_update_interval: int = 3600,
-        minimum_image_size: int = None,
+        minimum_image_size: Optional[int] = None,
+        maximum_image_size: Optional[int] = None,
+        maximum_ratio_size: Optional[float] = None,
+        size_bucket_increment: Optional[int] = None,
         cache_file_suffix: str = None,
         repeats: int = 0,
     ):
@@ -74,6 +84,30 @@ class MetadataBackend:
         self.minimum_image_size = (
             float(minimum_image_size) if minimum_image_size else None
         )
+        self.maximum_image_size = None
+        self.maximum_ratio_size = None
+        self.size_bucket_increment = None
+
+        if self.resolution_type == "unchanged":
+            if (
+                minimum_image_size is None
+                or maximum_image_size is None
+            ):
+                raise ValueError("Resolution type 'unchanged' requires a minimum " +
+                    "and maximum resolution. Please set them in the dataset " +
+                    "backend with `minimum_image_size` and " +
+                    "`maximum_image_size`.")
+            self.minimum_image_size = int(minimum_image_size)
+            self.maximum_image_size = int(maximum_image_size)
+
+            if maximum_ratio_size is None:
+                raise ValueError("Resolution type 'unchanged' requires a maximum " +
+                    "ratio to be specified. Please set this in the dataset " +
+                    "backend with `maximum_ratio_size`.")
+            self.maximum_ratio_size = maximum_ratio_size 
+
+            self.size_bucket_increment = size_bucket_increment
+
         self.image_metadata_loaded = False
         self.vae_output_scaling_factor = 8
         self.metadata_semaphor = Semaphore()
@@ -570,6 +604,25 @@ class MetadataBackend:
                     return False
             # Since we've now tested whether a square-cropped image will be adequate, we can calculate the area of the image.
             return minimum_image_size <= width * height
+        elif self.resolution_type == "unchanged":
+            try:
+                MultiaspectImage.calculate_size_bucket(
+                    0.0,
+                    self.resolution,
+                    (width, height),
+                    k=self.size_bucket_increment,
+                    drop_above_edge_size=int(self.maximum_image_size),
+                    drop_below_edge_size=int(self.minimum_image_size),
+                    maximum_ratio=self.maximum_ratio_size,
+                )
+            except (
+                ImageAreaTooLargeError,
+                ImageRatioTooLargeError,
+                ImageTooLargeError,
+                ImageTooSmallError,
+            ):
+                return False
+            return True
         else:
             raise ValueError(
                 f"BucketManager.meets_resolution_requirements received unexpected value for resolution_type: {self.resolution_type}"
@@ -883,6 +936,11 @@ class MetadataBackend:
                 f"Received sample with no metadata: {self.get_metadata_by_filepath(image_filename)}"
             )
             return True
+        
+        # TODO for unchanged
+        if self.resolution_type == "unchanged":
+            return False
+
         target_resolution = tuple(metadata_target_size)
         recalculated_target_resolution, intermediary_size, recalculated_aspect_ratio = (
             self._recalculate_target_resolution(

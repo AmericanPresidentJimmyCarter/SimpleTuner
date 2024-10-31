@@ -177,6 +177,8 @@ class TrainingSample:
             )
             # Store the megapixel value, eg. 1.0
             self.megapixel_resolution = self.resolution
+        elif self.resolution_type == "unchanged":
+            pass
         else:
             raise Exception(f"Unknown resolution type: {self.resolution_type}")
 
@@ -205,7 +207,7 @@ class TrainingSample:
                 aspect, self.resolution, self.original_size
             )
             # Check the size vs a 20% threshold
-            if (
+            if self.resolution_type == "unchanged" or (
                 target_size[0] * 1.2 < self.original_size[0]
                 and target_size[1] * 1.2 < self.original_size[1]
             ):
@@ -403,6 +405,8 @@ class TrainingSample:
             )
             logger.debug(f"Should resize? {should_resize}")
             return should_resize
+        elif self.data_backend_config.get("resolution_type") == "unchanged":
+            return False
         else:
             raise ValueError(
                 f"Unknown resolution type: {self.data_backend_config.get('resolution_type')}"
@@ -481,9 +485,11 @@ class TrainingSample:
                 - The intermediary size as (width, height).
                 - The aspect ratio of the target size. This will likely be different from the original aspect ratio.
         """
-        self.aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
-            self.original_size
-        )
+        self.aspect_ratio = None
+        if self.resolution_type != "unchanged":
+            self.aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
+                self.original_size
+            )
         if self.crop_enabled:
             if self.crop_aspect == "square":
                 self.target_size = (self.pixel_resolution, self.pixel_resolution)
@@ -499,24 +505,41 @@ class TrainingSample:
                 )
                 logger.debug(f"Square crop metadata: {square_crop_metadata}")
                 return square_crop_metadata
-        if self.crop_enabled and (
+        if (not self.crop_enabled or self.crop_aspect not in ("random", "closest")
+            ) and self.resolution_type == "unchanged":
+            raise ValueError("To use the unchanged resolution type either " +
+                "'random' or 'closest' must be selected as crop_aspect and " +
+                "cropping must be enabled")
+        if self.crop_enabled and self.resolution_type != "unchanged" and (
             self.crop_aspect == "random" or self.crop_aspect == "closest"
         ):
             # Grab a random aspect ratio from a list.
             self.aspect_ratio = self._select_random_aspect()
+
+        target_size_calculator_kwargs = {}
+        if self.resolution_type == "unchanged":
+            target_size_calculator_kwargs = dict(
+                k=self.data_backend_config.get('size_bucket_increment', 64),
+                drop_above_edge_size=self.data_backend_config.get('maximum_image_size', 1024),
+                drop_below_edge_size=self.data_backend_config.get('minimum_image_size', 512),
+                maximum_ratio=self.data_backend_config.get('maximum_ratio_size', 4.0),
+            )
         self.target_size, calculated_intermediary_size, self.aspect_ratio = (
             self.target_size_calculator(
-                self.aspect_ratio, self.resolution, self.original_size
+                self.aspect_ratio, self.resolution, self.original_size,
+                **target_size_calculator_kwargs,
             )
         )
-        if self.crop_aspect != "random" or not self.valid_metadata:
+        if self.resolution_type == "unchanged" or self.crop_aspect != "random" or not self.valid_metadata:
             self.intermediary_size = calculated_intermediary_size
-        self.aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
-            self.target_size
-        )
-        self.correct_intermediary_square_size()
-        if self.aspect_ratio == 1.0:
-            self.target_size = (self.pixel_resolution, self.pixel_resolution)
+
+        if self.resolution_type != "unchanged":
+            self.aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
+                self.target_size
+            )
+            self.correct_intermediary_square_size()
+            if self.aspect_ratio == 1.0:
+                self.target_size = (self.pixel_resolution, self.pixel_resolution)
 
         return (
             self.target_size,
@@ -664,7 +687,7 @@ class PreparedSample:
         original_size: tuple,
         intermediary_size: tuple,
         target_size: tuple,
-        aspect_ratio: float,
+        aspect_ratio: float|str,
         crop_coordinates: tuple,
     ):
         """
@@ -679,7 +702,12 @@ class PreparedSample:
         self.original_size = original_size
         self.intermediary_size = intermediary_size
         self.target_size = target_size
-        if image is not None and hasattr(image, "size") and type(image.size) is tuple:
+        if (
+            image is not None
+            and hasattr(image, "size")
+            and type(image.size) is tuple
+            and aspect_ratio is None
+        ):
             self.aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
                 image.size[0] / image.size[1]
             )

@@ -9,6 +9,7 @@ import logging
 import os
 import traceback
 from io import BytesIO
+from typing import Optional
 from helpers.image_manipulation.brightness import calculate_luminance
 from helpers.training import image_file_extensions
 
@@ -36,6 +37,9 @@ class DiscoveryMetadataBackend(MetadataBackend):
         delete_unwanted_images: bool = False,
         metadata_update_interval: int = 3600,
         minimum_image_size: int = None,
+        maximum_image_size: Optional[int] = None,
+        maximum_ratio_size: Optional[float] = None,
+        size_bucket_increment: Optional[int] = None,
         cache_file_suffix: str = None,
         repeats: int = 0,
     ):
@@ -53,6 +57,9 @@ class DiscoveryMetadataBackend(MetadataBackend):
             delete_unwanted_images=delete_unwanted_images,
             metadata_update_interval=metadata_update_interval,
             minimum_image_size=minimum_image_size,
+            maximum_image_size=maximum_image_size,
+            maximum_ratio_size=maximum_ratio_size,
+            size_bucket_increment=size_bucket_increment,
             cache_file_suffix=cache_file_suffix,
             repeats=repeats,
         )

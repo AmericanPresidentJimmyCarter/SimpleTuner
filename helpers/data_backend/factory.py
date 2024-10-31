@@ -118,7 +118,7 @@ def init_backend_config(backend: dict, args: dict, accelerator) -> dict:
         if (
             output["config"]["crop_aspect"] == "random"
             or output["config"]["crop_aspect"] == "closest"
-        ):
+        ) and "resolution_type" in backend and backend["resolution_type"] != "unchanged":
             if "crop_aspect_buckets" not in backend or not isinstance(
                 backend["crop_aspect_buckets"], list
             ):
@@ -185,8 +185,16 @@ def init_backend_config(backend: dict, args: dict, accelerator) -> dict:
     )
     output["config"]["maximum_image_size"] = maximum_image_size
     output["config"]["target_downsample_size"] = target_downsample_size
+    output["config"]["minimum_image_size"] = backend.get("minimum_image_size", args.minimum_image_size)
+    output["config"]["maximum_ratio_size"] = backend.get("maximum_ratio_size", None)
+    output["config"]["size_bucket_increment"] = backend.get("size_bucket_increment", 64)
 
-    if maximum_image_size and not target_downsample_size:
+    if (
+        maximum_image_size
+        and not target_downsample_size
+        and "resolution_type" in backend
+        and backend["resolution_type"] != "unchanged"
+    ):
         raise ValueError(
             "When a data backend is configured to use `maximum_image_size`, you must also provide a value for `target_downsample_size`."
         )
@@ -718,6 +726,14 @@ def configure_multi_databackend(args: dict, accelerator, text_encoders, tokenize
         else:
             raise ValueError(f"Unknown metadata backend type: {metadata_backend}")
 
+        maximum_image_size = None
+        maximum_ratio_size = None
+        size_bucket_increment = None
+        if resolution_type == "unchanged":
+            maximum_image_size = backend.get("maximum_image_size")
+            maximum_ratio_size = backend.get("maximum_ratio_size")
+            size_bucket_increment = backend.get("size_bucket_increment", 64)
+
         init_backend["metadata_backend"] = BucketManager_cls(
             id=init_backend["id"],
             instance_data_dir=init_backend["instance_data_dir"],
@@ -727,6 +743,9 @@ def configure_multi_databackend(args: dict, accelerator, text_encoders, tokenize
             minimum_image_size=backend.get(
                 "minimum_image_size", args.minimum_image_size
             ),
+            maximum_image_size=maximum_image_size,
+            maximum_ratio_size=maximum_ratio_size,
+            size_bucket_increment=size_bucket_increment,
             resolution_type=backend.get("resolution_type", args.resolution_type),
             batch_size=args.train_batch_size,
             metadata_update_interval=backend.get(

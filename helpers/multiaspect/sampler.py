@@ -232,7 +232,7 @@ class MultiAspectSampler(torch.utils.data.Sampler):
         Returns:
             int: Bucket array index, eg. 0
         """
-        if "." not in str(bucket_name):
+        if "." not in str(bucket_name) and 'x' not in str(bucket_name):
             self.debug_log(f"Assuming {bucket_name} is already an index.")
             return int(bucket_name)
         return self.buckets.index(str(bucket_name))
