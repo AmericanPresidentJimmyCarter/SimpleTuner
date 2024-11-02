@@ -362,12 +362,14 @@ class MultiAspectSampler(torch.utils.data.Sampler):
         )
 
     def log_state(self, show_rank: bool = True, alt_stats: bool = False):
-        self.debug_log(
-            f'Active Buckets: {", ".join(self.convert_to_human_readable(float(b), self.metadata_backend.aspect_ratio_bucket_indices[b], self.resolution) for b in self.buckets)}'
-        )
-        self.debug_log(
-            f'Exhausted Buckets: {", ".join(self.convert_to_human_readable(float(b), self.metadata_backend.aspect_ratio_bucket_indices.get(b, "N/A"), self.resolution) for b in self.exhausted_buckets)}'
-        )
+        active_buckets = ", ".join(
+                self.convert_to_human_readable(b, self.metadata_backend.aspect_ratio_bucket_indices[b], self.resolution)
+                for b in self.buckets)
+        exhausted_buckets = ", ".join(
+                self.convert_to_human_readable(b, self.metadata_backend.aspect_ratio_bucket_indices.get(b, "N/A"), self.resolution)
+                for b in self.exhausted_buckets)
+        self.debug_log(f'Active Buckets: {active_buckets}')
+        self.debug_log(f'Exhausted Buckets: {exhausted_buckets}')
         if alt_stats:
             # Return an overview instead of a snapshot.
             # Eg. return totals, and not "as it is now"
@@ -409,10 +411,23 @@ class MultiAspectSampler(torch.utils.data.Sampler):
         Validate and yield images from given samples. Return a list of valid image paths.
         """
         to_yield = []
+        bucket_aspect_ratio = float(bucket)  # Convert the bucket key to a float for aspect ratio comparison
+
         for image_path in samples:
             image_metadata = self.metadata_backend.get_metadata_by_filepath(image_path)
             if image_metadata is None:
                 image_metadata = {}
+
+            # Aspect ratio check based on `target_size` metadata
+            target_size = image_metadata.get("target_size")
+            if target_size:
+                width, height = target_size
+                aspect_ratio = width / height if height != 0 else 0
+                # Skip images that don’t match the bucket aspect ratio within a small tolerance
+                if not (bucket_aspect_ratio - 0.05 <= aspect_ratio <= bucket_aspect_ratio + 0.05):
+                    self.debug_log(f"Skipping {image_path} due to aspect ratio mismatch (expected {bucket_aspect_ratio}, got {aspect_ratio})")
+                    continue
+
             if (
                 StateTracker.get_args().model_type
                 not in [
@@ -619,18 +634,22 @@ class MultiAspectSampler(torch.utils.data.Sampler):
 
     @staticmethod
     def convert_to_human_readable(
-        aspect_ratio_float: float, bucket: iter, resolution: int = 1024
+        aspect_ratio: float|str|int, bucket: iter, resolution: int = 1024
     ):
+        try:
+            aspect_ratio = float(aspect_ratio)
+        except ValueError:
+            pass
 
-        if aspect_ratio_float < 1:
+        if type(aspect_ratio) == float and aspect_ratio < 1:
             ratio_width = resolution
-            ratio_height = int(resolution / aspect_ratio_float)
-        else:
-            ratio_width = int(resolution * aspect_ratio_float)
+            ratio_height = int(resolution / aspect_ratio)
+        elif type(aspect_ratio) == float:
+            ratio_width = int(resolution * aspect_ratio)
             ratio_height = resolution
 
         # Return the aspect ratio as a string in the format "width:height"
-        return f"{aspect_ratio_float} ({len(bucket)} samples)"
+        return f"{aspect_ratio} ({len(bucket)} samples)"
         return f"{ratio_width}:{ratio_height}"
 
     def debug_log(self, msg: str):

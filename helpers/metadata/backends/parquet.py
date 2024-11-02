@@ -528,9 +528,12 @@ class ParquetMetadataBackend(MetadataBackend):
                 if aspect_ratio_column
                 else training_sample.aspect_ratio
             )
-            aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
-                float(aspect_ratio)
-            )
+            try:
+                aspect_ratio = MultiaspectImage.calculate_image_aspect_ratio(
+                    float(aspect_ratio)
+                )
+            except ValueError:
+                pass
 
             logger.debug("Image metadata has been generated and collected.")
             image_metadata.update(
@@ -538,7 +541,7 @@ class ParquetMetadataBackend(MetadataBackend):
                     "intermediary_size": prepared_sample.intermediary_size,
                     "crop_coordinates": prepared_sample.crop_coordinates,
                     "target_size": prepared_sample.target_size,
-                    "aspect_ratio": float(prepared_sample.aspect_ratio),
+                    "aspect_ratio": prepared_sample.aspect_ratio,
                     "luminance": int(
                         database_image_metadata.get(
                             self.parquet_config.get("luminance_column"), 0

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+export LD_LIBRARY_PATH=/usr/local/cuda-12.4/bin
+export CUDA_VISIBLE_DEVICES=0
+export XFORMERS_FORCE_DISABLE_TRITON=1
 
 # Pull config from config.env
 [ -f "config/config.env" ] && source config/config.env
